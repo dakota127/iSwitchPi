@@ -11,6 +11,8 @@ This C-program implements a Finite State Machine in the MCU.
 A small Python script is running in the Pi itself. 
 Just one GPIO-Pin is used for two-way communication.
 
+Formfactor: Raspi hat with 2x20 Pins for other hats on top of iSwitchPi.
+
 Documentation, Code and EagleCAD files on GitHub. 
 Documentation is in German, with English Abstract.  
 
