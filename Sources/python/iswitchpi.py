@@ -68,11 +68,11 @@ class GracefulKiller:
     signal.signal(signal.SIGTERM, self.exit_gracefully)
 
   def exit_gracefully(self,signum, frame):
-      if debug==2: print "Signal received " , signum 
+      if debug==2: print "iSwitchPi: Signal received " , signum 
       tmp=killfile + "-" + '{:2d}'.format(signum) + ".txt"
       killit=open(tmp,"w")  # write killfile, so we know this was done
       killit.close()
-      if debug==2: print "Return in Signalhandler.. " , signum
+      if debug==2: print "iSwitchPi: Return in Signalhandler.. " , signum
       self.kill_now = True
       
 #------------------------------------------------
@@ -80,7 +80,7 @@ class GracefulKiller:
 def purgekf(dir, pattern):
     for f in os.listdir(dir):
     	if re.search(pattern, f):
-    	    if debug==2: print "killfile %s removed" % f
+    	    if debug==2: print "iSwitchPi: killfile %s removed" % f
             os.remove(os.path.join(dir, f))
 
 
@@ -90,7 +90,7 @@ def my_callback(channel):
     global state,sleeptime,anzir;
     
 #    sleeptime=0         # starting now we do not sleep in main loop
-    if debug==2:   print "Shutdown Pin Rising: %d" % channel
+    if debug==2:   print "iSwitchPi: Shutdown GPIO-Pin Rising: %d" % channel
     anzir=anzir+1
 #    GPIO.remove_event_detect(channel);
 #    state=2;
@@ -105,9 +105,9 @@ def shutdown(what):
 
     if (what==1):                # high means halt, low means reboot
     
-        if debug==1: print "\niswitchpi detected HALT"
+        if debug==1: print "\niSwitchPi: detected HALT"
         if debug==2:           # debug mode do nothing exept print
-            print "Shutdown reached... Halting"
+            print "iSwitchPi: Shutdown reached... Halting"
             GPIO.output(FROMPI,False)
             GPIO.cleanup(FROMPI)
             sys.exit(0)
@@ -123,10 +123,10 @@ def shutdown(what):
             call('halt', shell=False)   # halt the Linux System
             return(0)
     else:
-        if debug==1: print "\niswitchpi detected REBOOT"
+        if debug==1: print "\niSwitchPi: detected REBOOT"
 
         if debug==2:           # debug mode do nothing exept print
-            print "Shutdown reached... Rebooting"
+            print "iSwitchPi: Shutdown reached... Rebooting"
             GPIO.output(FROMPI,False)
             GPIO.cleanup(FROMPI)
             sys.exit(0)
@@ -152,7 +152,7 @@ def initialize():
     GPIO.setup(FROMPI, GPIO.IN)       # Set GPIO Pin to input
     GPIO.add_event_detect(FROMPI, GPIO.RISING, callback=my_callback)
 
-    if debug==2: print ("%s initialize done") % appname;
+    if debug==2: print ("iSwitchPi: initialize done");
     return();
 
 # Function send pulses to ISWITCHPI
@@ -162,7 +162,7 @@ def sendpulse():  # blink led
     sleep(PULSE)
     GPIO.output(FROMPI, False)
     sleep(PULSE)
-
+    if debug==2: print ("iSwitchPi: pulses sent...");
     
 # Main starts here --------------------------------------
 #--------------------------------------------------------
@@ -176,7 +176,7 @@ if __name__ == '__main__':
     pfad=os.path.dirname(os.path.realpath(__file__))    # pfad wo dieses script läuft
     purgekf(pfad,killfile);                 # delete all killfiles
 
-    if debug==1: print ("\nStarted: %s  Path: %s\n") % (appname,pfad) 
+    if debug==1: print ("\niSwitchPi: Started: %s  Path: %s\n") % (appname,pfad) 
 
     initialize()
     sleep(2)                                   # wait for things to settle dowb^n
@@ -187,11 +187,11 @@ if __name__ == '__main__':
     while True:    
         sleep(sleeptime)                # normal delay in loop
         if killer.kill_now:
-            if debug==2: print "OK, Kill myself" 
+            if debug==2: print "iSwitchPi: OK, Kill myself" 
             break;
         if (intervall > INTERVALLMAX):      # intervall to send pulses
             if (anzir>0):                   # did we have Ir's in the past intervall ?
-                if debug==2: print "Number of IR: ", anzir      # yes we did, so shutdown or reboot
+                if debug==2: print "iSwitchPi: Number of IR: ", anzir      # yes we did, so shutdown or reboot
                 shutdown(anzir)             # pass number of IR on to shutdown function
                 break;                      # terminate script, OS will do the rest   
             anzir=0                         # clear old IR's 
@@ -212,7 +212,7 @@ if __name__ == '__main__':
     GPIO.output(FROMPI,False)               # set GPIO low 
                                             # we reach this if Pi is halted/rebooted
                                             # from commandline or else
-    if debug==2: print " End reached"
+    if debug==2: print "iSwitchPi: End reached"
 #-------------------------------------------------------------
 #   end of program       
 #-------------------------------------------------------------
