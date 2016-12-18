@@ -2,11 +2,15 @@
 # coding: utf-8
 #--------------------------------------------------------------------------
 #   Pi  Shutdown Script
-#   Version 2
+#   Version 3
 #   Works together with the Intelligent Power Switch ISWITCHPI
 #   Only one GPIO pin is used to communicate with the ISWITCHPI
 #
-#   Testing: run script with commadline -d 1   or -d 2
+#   Communication GPIO Pin selectable with commandline option -p
+#   Default Pin is GPIO 20
+#   Valid Pin Number 13,19,20 and 26  (as defined on the iSwitchPI PCB)
+#
+#   Testing: run script with commandline option -d 1   or -d 2
 #
 #   WARNING: Do not change time/sleep values, they correspond to what iswitchpi does
 #
@@ -14,6 +18,10 @@
 #           by looking for killfiles in the sripts directory
 #
 #   by Peter Boxler, Februar 2016
+#
+# Modifications:
+# Dec. 2016 optparse replaced by argparse
+
 # ------------------------------------------------------------------------
 #
 # Import the modules to send commands to the system and access GPIO pins
@@ -22,16 +30,12 @@ import RPi.GPIO as GPIO
 
 from time import sleep
 import time, datetime
-import optparse
+import argparse
 import sys, os, re
 import signal
 #
-#-------------------------------------------------------------------------------------
-# Define the Pin numbers for signaling to/from ISWITCHPi 
-# Change here if you use other pins
-FROMPI = 20    #   Keep me alive Pin, Pi signals running by setting this hi  (17 in testenv)
-# -----------------------------------------------------------------------------------
 #
+ret=0;
 debug=0                 # set this to 1 or 2 mit Commandline ar -d
 appname=""              # script name
 pfad=""                 # path where script runs
@@ -51,13 +55,16 @@ killfile="iswitch-kill"
 #----------------------------------------------------------
 # get and parse commandline args
 def argu():
-    parser = optparse.OptionParser()
-    parser.add_option('-d', '--dbg', dest='debug', default=0,
-                    action='store', type='int',
-                    help='debug')
+    parser = argparse.ArgumentParser()
 
-    options, args = parser.parse_args()
-    return(options)
+    parser.add_argument("-d", help="debug", default=0,
+                    type=int)
+    parser.add_argument("-p", help="gpio", default=20,
+                    type=int)
+
+    args = parser.parse_args()
+#   print (args.d, args.p)          # initial debug
+    return(args)
     
 #----------------------------------------------
 #-- Class for Graceful termination
@@ -85,6 +92,18 @@ def purgekf(dir, pattern):
 
 
 # -----------------------------------------------------------------
+# check selected GPIO Pin
+def gpio_pincheck(pin):
+    
+    if ((pin == 13) or (pin == 19) or (pin==20) or (pin==26)) :
+      if debug==2:   print "iSwitchPi: Selected ComPin: %d" % pin
+      return();
+    print "iSwitchPi: Selected GPIO %d not valid (use 13,19,20 or 26)" % pin
+    print "iSwitchPi: Terminating"
+
+    return(99);   
+
+# -----------------------------------------------------------------
 # Define a function to run when an interrupt is called
 def my_callback(channel):
     global state,sleeptime,anzir;
@@ -99,8 +118,8 @@ def my_callback(channel):
 #----------------------------------------------------
 # what do we need to do: halt or reboot the Pi
 def shutdown(what):
-    GPIO.remove_event_detect(FROMPI);
-    GPIO.setup(FROMPI, GPIO.OUT)       # Set GPIO Pin to output again
+    GPIO.remove_event_detect(com_gpio_pin);
+    GPIO.setup(com_gpio_pin, GPIO.OUT)       # Set GPIO Pin to output again
 
 
     if (what==1):                # high means halt, low means reboot
@@ -108,8 +127,8 @@ def shutdown(what):
         if debug==1: print "\niSwitchPi: detected HALT"
         if debug==2:           # debug mode do nothing exept print
             print "iSwitchPi: Shutdown reached... Halting"
-            GPIO.output(FROMPI,False)
-            GPIO.cleanup(FROMPI)
+            GPIO.output(com_gpio_pin,False)
+            GPIO.cleanup(com_gpio_pin)
             sys.exit(0)
         else:
             try:
@@ -117,8 +136,8 @@ def shutdown(what):
             except:
                 pass;
             sleep(0.2)
-            GPIO.output(FROMPI,False)
-            GPIO.cleanup(FROMPI)
+            GPIO.output(com_gpio_pin,False)
+            GPIO.cleanup(com_gpio_pin)
             sleep(sleepbeforedown)
             call('halt', shell=False)   # halt the Linux System
             return(0)
@@ -127,8 +146,8 @@ def shutdown(what):
 
         if debug==2:           # debug mode do nothing exept print
             print "iSwitchPi: Shutdown reached... Rebooting"
-            GPIO.output(FROMPI,False)
-            GPIO.cleanup(FROMPI)
+            GPIO.output(com_gpio_pin,False)
+            GPIO.cleanup(com_gpio_pin)
             sys.exit(0)
         else:
             try:
@@ -136,8 +155,8 @@ def shutdown(what):
             except:
                 pass;
             sleep(0.2)
-            GPIO.output(FROMPI,False)
-            GPIO.cleanup(FROMPI)
+            GPIO.output(com_gpio_pin,False)
+            GPIO.cleanup(com_gpio_pin)
             sleep(sleepbeforedown)
             call('reboot', shell=False)   # reboot the Linux System
             return(0)
@@ -149,8 +168,8 @@ def initialize():
     GPIO.setmode(GPIO.BCM)
     GPIO.setwarnings(False)
     sleep(0.2)
-    GPIO.setup(FROMPI, GPIO.IN)       # Set GPIO Pin to input
-    GPIO.add_event_detect(FROMPI, GPIO.RISING, callback=my_callback)
+    GPIO.setup(com_gpio_pin, GPIO.IN)       # Set GPIO Pin to input
+    GPIO.add_event_detect(com_gpio_pin, GPIO.RISING, callback=my_callback)
 
     if debug==2: print ("iSwitchPi: initialize done");
     return();
@@ -158,9 +177,9 @@ def initialize():
 # Function send pulses to ISWITCHPI
 #-------------------------------------------------------
 def sendpulse():  # blink led 
-    GPIO.output(FROMPI, True)
+    GPIO.output(com_gpio_pin, True)
     sleep(PULSE)
-    GPIO.output(FROMPI, False)
+    GPIO.output(com_gpio_pin, False)
     sleep(PULSE)
     if debug==2: print ("iSwitchPi: pulses sent...");
     
@@ -172,7 +191,12 @@ if __name__ == '__main__':
                                             # that was excuted from the commandline
     appname=os.path.basename(__file__)      # name des scripts holen
     options=argu()                          # get commandline args
-    debug=options.debug                     # debug option
+    debug=options.d   
+    com_gpio_pin=options.p                  # GPIO Pin
+    ret=gpio_pincheck(com_gpio_pin)          # check pin
+    if (ret==99): 
+      sys.exit(0)
+    
     pfad=os.path.dirname(os.path.realpath(__file__))    # pfad wo dieses script läuft
     purgekf(pfad,killfile);                 # delete all killfiles
 
@@ -195,11 +219,11 @@ if __name__ == '__main__':
                 shutdown(anzir)             # pass number of IR on to shutdown function
                 break;                      # terminate script, OS will do the rest   
             anzir=0                         # clear old IR's 
-            GPIO.remove_event_detect(FROMPI);
-            GPIO.setup(FROMPI, GPIO.OUT)       # Set GPIO Pin to output 
+            GPIO.remove_event_detect(com_gpio_pin);
+            GPIO.setup(com_gpio_pin, GPIO.OUT)       # Set GPIO Pin to output 
             sendpulse()                        # send a pulse to iSwitchPi
-            GPIO.setup(FROMPI, GPIO.IN)        # Set GPIO Pin back to input
-            GPIO.add_event_detect(FROMPI, GPIO.RISING, callback=my_callback)
+            GPIO.setup(com_gpio_pin, GPIO.IN)        # Set GPIO Pin back to input
+            GPIO.add_event_detect(com_gpio_pin, GPIO.RISING, callback=my_callback)
             start_time = time.time();           # take time
             
         intervall = time.time() - start_time       # check timer
@@ -207,9 +231,9 @@ if __name__ == '__main__':
     
 # End  do while --------------------------------------------
 #
-    GPIO.remove_event_detect(FROMPI);
-    GPIO.setup(FROMPI, GPIO.OUT)            # Set GPIO Pin to output again
-    GPIO.output(FROMPI,False)               # set GPIO low 
+    GPIO.remove_event_detect(com_gpio_pin);
+    GPIO.setup(com_gpio_pin, GPIO.OUT)            # Set GPIO Pin to output again
+    GPIO.output(com_gpio_pin,False)               # set GPIO low 
                                             # we reach this if Pi is halted/rebooted
                                             # from commandline or else
     if debug==2: print "iSwitchPi: End reached"
