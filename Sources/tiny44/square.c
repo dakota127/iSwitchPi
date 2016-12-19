@@ -17,20 +17,22 @@
 /*                                                                      */
 /*  Functions are  called by iswitch.c                                  */
 /*                                                                      */
-/*  ----> PINA6 is analog In                                            */                                                                */
-/*  ----> PINA5 is pulse out                                            */
+/*  ----> PINA6 is analog In                                            */
+/*  ----> PINA5 is pulse out (and orange LEd)                                           */
 /*  ----> PINA7 is pulse generation on/off                              */
 /* This c-Code runs on ATtiny44                                         */
 /* Written by:                                                          */
 /* Peter K. Boxler, Januar 2016                                         */
 /************************************************************************/
-// 
+
 #include <avr/io.h>
 #include <util/delay.h>
 #include <stdint.h>
 
 /* Fast PWM */
 #include <square.h>
+
+static uint8_t  pinold,was, first=1, generate_pulse;
 
 //---------------------------------------------------------
 // Function pwm_init()                          
@@ -39,30 +41,40 @@
 void pwm_init(void) {
 	DDRA |= (1<<PINA5);	                // Outpu Compare Pin OC1B als Ausgang (PA5)
 
+	DDRA &= ~(1<<PINA7);                 // input DIP Switch 1
 	DDRB &= ~(1<<PINB0);                 // input DIP Switch
 	DDRB &= ~(1<<PINB1);                 // input DIP Switch
 	DDRB &= ~(1<<PINB2);                 // input DIP Switch
 //    DDRA |= (1<<PINA0);                  // TestLED nur für Test
     	 
 	PORTB |= (1<<PINB0)| (1<<PINB1)  | (1<<PINB2);    // pull upp
-	PORTA |= (1<<PINA7);                                // pull upp
+	PORTA |= (1<<PINA7);                              // pull upp
 
-	TCCR1A |=  (1<<COM1B1) ;             // OC1A als nicht invertierender Ausgang
-	OCR1A=5;                       // Toggle OC1A/OC1B on Compare Match, set OC0A/OC0B at BOTTOM
-                                        // (non-inverting mode)
-    TCCR1B |= (1<<WGM12)| (1<<WGM13);               // CTC (Clear Timer on Compare), see Table 12-5
-    TCCR1A |= (1<<WGM10)| (1<<WGM11);               // CTC (Clear Timer on Compare), see Table 12-5
+  generate_pulse=0;
+  if ( !(PINA & (1<<PINA7)) ) {
+    generate_pulse=1;                 // check if pulse generation is required (Dip switch Pos 1 ON)
+  
+    TCCR1A |=  (1<<COM1B1) ;            // OC1A als nicht invertierender Ausgang
+    OCR1A=5;                            // Toggle OC1A/OC1B on Compare Match, set OC0A/OC0B at BOTTOM
+                                      // (non-inverting mode)
+    TCCR1B |= (1<<WGM12)| (1<<WGM13);   // CTC (Clear Timer on Compare), see Table 12-5
+    TCCR1A |= (1<<WGM10)| (1<<WGM11);   // CTC (Clear Timer on Compare), see Table 12-5
 
-	TCCR1B |=  (1<<CS10) |  (1<<CS12);    // Clock select for Counter: Prescaler /1024  Table 12-6
-	TIMSK1 &= ~((1<<OCIE1A));            // Timer Interrupt OC1A deaktivieren , no IR needed
+    TCCR1B |=  (1<<CS10) |  (1<<CS12);  // Clock select for Counter: Prescaler /1024  Table 12-6
+    TIMSK1 &= ~((1<<OCIE1A));           // Timer Interrupt OC1A deaktivieren , no IR needed
 
-	ADCSRA |= (1 << ADEN)|          // Analog-Digital enable bit
-	(1 << ADPS1);     // set prescaler to divison 8  (Table 17-5)
+    ADCSRA |= (1 << ADEN)|              // Analog-Digital enable bit
+    (1 << ADPS1);                       // set prescaler to divison 8  (Table 17-5)
 	
-	ADCSRB &= ~(1<<ADLAR);  // clear Adlar D result store in (more significant bit in ADCH)
- 
-	ADMUX |=   (1 << MUX1) | (1 << MUX2);   // Choose AD input (single ended) (PA6)  
-	
+    ADCSRB &= ~(1<<ADLAR);              // clear Adlar D result store in (more significant bit in ADCH)
+    ADMUX |=   (1 << MUX1) | (1 << MUX2);   // Choose AD input (single ended) (PA6)  
+	}
+	else {
+	  TCCR1B = 0x00;                        // Timer 0 not running if no pulses are required
+    TCCR1A = 0x00;                        // REBOOT if Dip-Switch 1 ist set to on.
+    PORTA &= ~( 1<<PINA5 );             // orange Led off 
+
+  }
 	                          
 }
 
@@ -71,12 +83,21 @@ void pwm_init(void) {
 //  Start Timer1
 //
 void pwm_start(void) {
+
+  if ( !(PINA & (1<<PINA7)) ) {
+    generate_pulse=1;                 // check if pulse generation is required (Dip switch Pos 1 ON)
     TCCR1B |= (1<<WGM12)| (1<<WGM13);           // Set fast pwm mode, see Table 12-5
     TCCR1A |= (1<<WGM10)| (1<<WGM11);           
-	TCCR1B |=  (1<<CS10) |  (1<<CS12);          // Clock select for Counter: Prescaler /1024  Table 12-6
-	TCCR1A |=  (1<<COM1B1) ;                    // OC1A als nicht invertierender Ausgang
-	TIMSK1 &= ~((1<<OCIE1A));                   // Timer Interrupt OC1A deaktivieren , no IR needed
-	
+	  TCCR1B |=  (1<<CS10) |  (1<<CS12);          // Clock select for Counter: Prescaler /1024  Table 12-6
+	  TCCR1A |=  (1<<COM1B1) ;                    // OC1A als nicht invertierender Ausgang
+	  TIMSK1 &= ~((1<<OCIE1A));                   // Timer Interrupt OC1A deaktivieren , no IR needed
+  }
+  else {
+    TCCR1B = 0x00;                              //do not start timer, not requested
+    TCCR1A = 0x00;
+    generate_pulse=0;     
+  }
+  
 }
 
 
@@ -102,7 +123,7 @@ uint16_t raw_adc;
 static uint16_t raw_adc_old;
 
             
-            TCCR1B |=  (1<<CS10) |  (1<<CS12);      // Clock select for Counter: Prescaler /1024  Table 12-6
+        TCCR1B |=  (1<<CS10) |  (1<<CS12);      // Clock select for Counter: Prescaler /1024  Table 12-6
 
 		    ADCSRA |= (1 << ADEN);                  // Analog-Digital enable bit im ADC Control und Status Register A
 		                                            // dies bit null setzten turns ADC off
@@ -144,6 +165,7 @@ static uint16_t raw_adc_old;
 //  Set OCR1A accordingly or activate ADC
 void pwm_check(void) {
 
+  if (!generate_pulse) return;        // DIP Switch 1 is off, do nothing
 
 //    if (TCCR1B== 0x00) {return;}      // Timer not on, do nothing
 
@@ -162,82 +184,73 @@ void pwm_check(void) {
           {
             case 0:
             {
-            TCNT1=0 ; 
-            pwm_adc();
-            return;
+              TCNT1=0 ; 
+              pwm_adc();
+              return;
             }
-
             case 1:
             {
-
-            TCCR1B |=   (1<<CS12);              // Clock select for Counter: Prescaler /256  Table 12-6
-            OCR1A=7812;                         // 0.5 HZ
-            OCR1B=700;                          // set OCR1B value for Timer1 (sets duty cycle)
-            ADCSRA &= ~(1<<ADEN);               // shut down the ADC
-            return;
+              TCCR1B |=   (1<<CS12);              // Clock select for Counter: Prescaler /256  Table 12-6
+              OCR1A=7812;                         // 0.5 HZ
+              OCR1B=700;                          // set OCR1B value for Timer1 (sets duty cycle)
+              ADCSRA &= ~(1<<ADEN);               // shut down the ADC
+              return;
             }
             case 2:
             {
-            TCCR1B |=  (1<<CS10) |  (1<<CS11);  // Clock select for Counter: Prescaler /64  Table 12-6
-            OCR1A=15625;                        // 1 HZ
-            OCR1B=1400;                         // set OCR1B value for Timer1 (sets duty cycle)
-            ADCSRA &= ~(1<<ADEN);               // shut down the ADC
-            return;
+              TCCR1B |=  (1<<CS10) |  (1<<CS11);  // Clock select for Counter: Prescaler /64  Table 12-6
+              OCR1A=15625;                        // 1 HZ
+              OCR1B=1400;                         // set OCR1B value for Timer1 (sets duty cycle)
+              ADCSRA &= ~(1<<ADEN);               // shut down the ADC
+              return;
             }
-            
             case 3:
             {
-            TCCR1B |=  (1<<CS10) |  (1<<CS11);  // Clock select for Counter: Prescaler /64  Table 12-6
-            OCR1A=3125;                         // 5 Hz
-            OCR1B=300;                          // set OCR1B value for Timer1 (sets duty cycle)
-            ADCSRA &= ~(1<<ADEN);               // shut down the ADC
-            return;
-
+              TCCR1B |=  (1<<CS10) |  (1<<CS11);  // Clock select for Counter: Prescaler /64  Table 12-6
+              OCR1A=3125;                         // 5 Hz
+              OCR1B=300;                          // set OCR1B value for Timer1 (sets duty cycle)
+              ADCSRA &= ~(1<<ADEN);               // shut down the ADC
+              return;
             }
             case 4:
-            
             {
-            TCCR1B |=  (1<<CS10) |  (1<<CS11);  // Clock select for Counter: Prescaler /64  Table 12-6
-            OCR1A=1562;                         // 10HZ
-            OCR1B=140;                          // set OCR1B value for Timer1 (sets duty cycle)
-            ADCSRA &= ~(1<<ADEN);               // shut down the ADC
-            return;
+              TCCR1B |=  (1<<CS10) |  (1<<CS11);  // Clock select for Counter: Prescaler /64  Table 12-6
+              OCR1A=1562;                         // 10HZ
+              OCR1B=140;                          // set OCR1B value for Timer1 (sets duty cycle)
+              ADCSRA &= ~(1<<ADEN);               // shut down the ADC
+              return;
             }
             case 5:
-            
             {
-            TCCR1B |=  (1<<CS11) ;              // Clock select for Counter: Prescaler /8 Table 12-6
-            OCR1A=2500;                         // 50HZ
-            OCR1B=250;                          // set OCR1B value for Timer1 (sets duty cycle)
-            ADCSRA &= ~(1<<ADEN);               // shut down the ADC
-            return;
-   
+              TCCR1B |=  (1<<CS11) ;              // Clock select for Counter: Prescaler /8 Table 12-6
+              OCR1A=2500;                         // 50HZ
+              OCR1B=250;                          // set OCR1B value for Timer1 (sets duty cycle)
+              ADCSRA &= ~(1<<ADEN);               // shut down the ADC
+              return;
             }
             case 6:
             {
-            TCCR1B |=   (1<<CS11);              // Clock select for Counter: Prescaler /8  Table 12-6
-            OCR1A=1250;                         // 100HZ
-            OCR1B=100;                          // set OCR1B value for Timer1 (sets duty cycle)
-            ADCSRA &= ~(1<<ADEN);               // shut down the ADC
-            return;
+              TCCR1B |=   (1<<CS11);              // Clock select for Counter: Prescaler /8  Table 12-6
+              OCR1A=1250;                         // 100HZ
+              OCR1B=100;                          // set OCR1B value for Timer1 (sets duty cycle)
+              ADCSRA &= ~(1<<ADEN);               // shut down the ADC
+              return;
             }
-            
             case 7:
             {
-            TCCR1B |=   (1<<CS10);              // Clock select for Counter: Prescaler /1  Table 12-6
-            OCR1A=5000;                         // 200HZ
-            OCR1B=500;                          // set OCR1B value for Timer1 (sets duty cycle)
-            ADCSRA &= ~(1<<ADEN);               // shut down the ADC
-            return;
+              TCCR1B |=   (1<<CS10);              // Clock select for Counter: Prescaler /1  Table 12-6
+              OCR1A=5000;                         // 200HZ
+              OCR1B=500;                          // set OCR1B value for Timer1 (sets duty cycle)
+              ADCSRA &= ~(1<<ADEN);               // shut down the ADC
+              return;
             }
-            
             default:                            // do 1 sec (as in case 2)
             {
-            TCCR1B |=  (1<<CS10) |  (1<<CS11);  // Clock select for Counter: Prescaler /64  Table 12-6
-            OCR1A=15625;                        // 1 HZ
-            OCR1B=1400;                         // set OCR1B value for Timer1 (sets duty cycle)
-            ADCSRA &= ~(1<<ADEN);               // shut down the ADC
-            return;
+              TCCR1B |=  (1<<CS10) |  (1<<CS11);  // Clock select for Counter: Prescaler /64  Table 12-6
+              OCR1A=15625;                        // 1 HZ
+              OCR1B=1400;                         // set OCR1B value for Timer1 (sets duty cycle)
+              ADCSRA &= ~(1<<ADEN);               // shut down the ADC
+              return;
             }
 
         }   // end switch
@@ -246,11 +259,12 @@ void pwm_check(void) {
         else // no input change
         {
         
-        if (was == 0)                       // all three inputs are low 
-            {
-            pwm_adc();                      // ADC is used to set OCR1A
-            return;
-            }        
+        if (was == 0) {                      // all three inputs are low 
+          pwm_adc();                      // ADC is used to set OCR1A
+          return;
+        }        
            
 		}       // ende was==0
 }
+//  End of Code
+//

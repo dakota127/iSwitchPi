@@ -10,4 +10,3 @@ void pwm_adc(void);
 void pwm_stop(void);
 void pwm_start(void);
 void pwm_check(void);
-static uint8_t  pinold, was, first=1;

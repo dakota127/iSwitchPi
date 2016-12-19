@@ -44,7 +44,7 @@
 
 // define VERSION if board iswitchpi Version 1
 //#define VERSION1
-#define F_CPU           1000000             // processor clock frequency
+// #define F_CPU           1000000             // processor clock frequency - defined in Makefile !!
 #define KEY_PORT        PINA                // Port A on ATtiny44
 #define VPOWER          PINA1               // 5 Volt Power on/off
 #define FROMPI          PINA2               // signal from and to Pi
