@@ -10,8 +10,8 @@
 #   Default Pin is GPIO 20
 #   Valid Pin Number 13,19,20 and 26  (as defined on the iSwitchPI PCB)
 #
-#   Testing: run script with commandline option -d 1   or -d 2
-#
+#   Testing: run script with commandline option -d 0 , -d 1 or -d 2
+#             (note: use -d 0 if quit is neeed (no output)
 #   WARNING: Do not change time/sleep values, they correspond to what iswitchpi does
 #
 #   Note:   killfiles are use for testing only: we can check if Signals from OS are treated ok
@@ -57,7 +57,7 @@ killfile="iswitch-kill"
 def argu():
     parser = argparse.ArgumentParser()
 
-    parser.add_argument("-d", help="debug", default=0,
+    parser.add_argument("-d", help="debug", default=1,
                     type=int)
     parser.add_argument("-p", help="gpio", default=20,
                     type=int)
@@ -96,7 +96,7 @@ def purgekf(dir, pattern):
 def gpio_pincheck(pin):
     
     if ((pin == 13) or (pin == 19) or (pin==20) or (pin==26)) :
-      if debug==2:   print "iSwitchPi: Selected ComPin: %d" % pin
+      if debug==1:   print "iSwitchPi: Selected ComPin: %d\n" % pin
       return();
     print "iSwitchPi: Selected GPIO %d not valid (use 13,19,20 or 26)" % pin
     print "iSwitchPi: Terminating"
@@ -191,16 +191,17 @@ if __name__ == '__main__':
                                             # that was excuted from the commandline
     appname=os.path.basename(__file__)      # name des scripts holen
     options=argu()                          # get commandline args
-    debug=options.d   
+    debug=options.d                         #
+    if (debug > 2): debug=1                  # accept only 0,1 or 2
     com_gpio_pin=options.p                  # GPIO Pin
-    ret=gpio_pincheck(com_gpio_pin)          # check pin
-    if (ret==99): 
-      sys.exit(0)
     
     pfad=os.path.dirname(os.path.realpath(__file__))    # pfad wo dieses script läuft
     purgekf(pfad,killfile);                 # delete all killfiles
 
-    if debug==1: print ("\niSwitchPi: Started: %s  Path: %s\n") % (appname,pfad) 
+    if debug==1: print ("\niSwitchPi: Started: %s  Path: %s") % (appname,pfad) 
+    ret=gpio_pincheck(com_gpio_pin)          # check pin
+    if (ret==99): 
+      sys.exit(0)
 
     initialize()
     sleep(2)                                   # wait for things to settle dowb^n

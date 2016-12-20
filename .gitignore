@@ -2,3 +2,7 @@
 MyResources
 Project-Description
 Sources/oldstuff
+*.o
+*.elf
+*.map
+

@@ -120,6 +120,12 @@ clean:
 	$(TARGET).lss $(TARGET).sym $(TARGET).map $(TARGET)~ \
 	$(TARGET).eeprom *.*~ *~
 
+clean2:
+	rm -f $(TARGET).elf  $(TARGET).obj \
+	*.o $(TARGET).d $(TARGET).eep $(TARGET).lst \
+	$(TARGET).lss $(TARGET).sym $(TARGET).map $(TARGET)~ \
+	$(TARGET).eeprom *.*~ *~
+
 squeaky_clean:
 	rm -f *.elf *.hex *.obj *.o *.d *.eep *.lst *.lss *.sym *.map *~ *.eeprom
 
