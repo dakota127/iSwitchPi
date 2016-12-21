@@ -10,11 +10,16 @@ The intelligence is provided by a program running in an AVR MCU ATtiny44.
 This C-program implements a Finite State Machine in the MCU.
 A small Python script is running in the Pi itself. 
 Just one GPIO-Pin is used for two-way communication.
+In addition, a variable frequency square wave is available for externally interrupting the Pi.
 
 Formfactor: Raspi hat with 2x20 Pins for other hats on top of iSwitchPi.
 
-Documentation, Code and EagleCAD files on GitHub. 
-Documentation is in German, with English Abstract.  
+Full Documentation, Code and EagleCAD files on GitHub. 
+Documentation is in English and German.
+Quick Start guide explains installation.  
+
+Also check out porject webpage at 
+http://projects.descan.com/projekt5.html
 
 Free to use, modify, and distribute with proper attribution.
 Frei für jedermann, vollständige Quellangabe vorausgesetzt.
