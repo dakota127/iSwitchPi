@@ -18,7 +18,7 @@ Full Documentation, Code and EagleCAD files on GitHub.
 Documentation is in English and German.
 Quick Start guide explains installation.  
 
-Also check out porject webpage at 
+Also check out my project webpage at 
 http://projects.descan.com/projekt5.html
 
 Free to use, modify, and distribute with proper attribution.
