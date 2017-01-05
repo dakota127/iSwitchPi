@@ -1,10 +1,11 @@
 /************************************************************************/
 /*  Pulse Generation on output Pin PINA5  on the ATtiny44               */
 /*                                                                      */
+/*  PINA7 defines Pulse Generation on/off                               */
 /*  Frequency is determined by input pins PINB0/PINB1/PINB2             */
 /*  Timer1 mode ist Fast PWM                                            */
 /*  PINB2   PINB1   PINB0       FREQUENCY                               */
-/*  0       0       0           use ADC to set frequency  with OCR1A    */
+/*  0       0       0           0.2 Hz                                  */
 /*  0       0       1           0.5 HZ                                  */
 /*  0       1       0           1 HZ                                    */
 /*  0       1       1           5 HZ                                    */
@@ -17,12 +18,10 @@
 /*                                                                      */
 /*  Functions are  called by iswitch.c                                  */
 /*                                                                      */
-/*  ----> PINA6 is analog In                                            */
-/*  ----> PINA5 is pulse out (and orange LEd)                                           */
-/*  ----> PINA7 is pulse generation on/off                              */
+/*  ----> PINA5 is pulse out (and orange LEd)                           */
 /* This c-Code runs on ATtiny44                                         */
 /* Written by:                                                          */
-/* Peter K. Boxler, Januar 2016                                         */
+/* Peter K. Boxler, December 2016                                         */
 /************************************************************************/
 
 #include <avr/io.h>
@@ -63,12 +62,8 @@ void pwm_init(void) {
     TCCR1B |=  (1<<CS10) |  (1<<CS12);  // Clock select for Counter: Prescaler /1024  Table 12-6
     TIMSK1 &= ~((1<<OCIE1A));           // Timer Interrupt OC1A deaktivieren , no IR needed
 
-    ADCSRA |= (1 << ADEN)|              // Analog-Digital enable bit
-    (1 << ADPS1);                       // set prescaler to divison 8  (Table 17-5)
-	
-    ADCSRB &= ~(1<<ADLAR);              // clear Adlar D result store in (more significant bit in ADCH)
-    ADMUX |=   (1 << MUX1) | (1 << MUX2);   // Choose AD input (single ended) (PA6)  
 	}
+	
 	else {
 	  TCCR1B = 0x00;                        // Timer 0 not running if no pulses are required
     TCCR1A = 0x00;                        // REBOOT if Dip-Switch 1 ist set to on.
@@ -113,59 +108,13 @@ void pwm_stop(void) {
 
 
 //---------------------------------------------------------
-// Function pwm_adc()                          
-//  Do ADC , analog Input from potentiometer is on PINA6
-//  Set OCR1A with the result
-void pwm_adc(void) {
-
-uint8_t adc_lobyte,adc_hibyte;
-uint16_t raw_adc;
-static uint16_t raw_adc_old;
-
-            
-        TCCR1B |=  (1<<CS10) |  (1<<CS12);      // Clock select for Counter: Prescaler /1024  Table 12-6
-
-		    ADCSRA |= (1 << ADEN);                  // Analog-Digital enable bit im ADC Control und Status Register A
-		                                            // dies bit null setzten turns ADC off
-		    ADCSRA |= (1 << ADSC);                  // Discarte first conversion
-		                                            // solange dies one ist, läuft conversion
-		                                            // es gibt auuch noch ADCSRB ADC Control und Status Register B 
-
-		    while (ADCSRA & (1 << ADSC)) { 
-			// wait until conversion is done
-		    }
-//		    raw_adc = ADC; // add lobyte and hibyte
-		    ADCSRA |= (1 << ADSC);                  // start single conversion
-
-		    while (ADCSRA & (1 << ADSC)) 
-		    {
-			// wait until conversion is done
-			ADCSRA &= ~(1<<ADEN);                   // shut down the ADC
-		    }
-
-		    adc_lobyte = ADCL;
-		    adc_hibyte = ADCH;   
-		    raw_adc = adc_hibyte<<8 | adc_lobyte;   // add lobyte and hibyte
-            if (raw_adc != raw_adc_old)             // has analog input changed ?
-		        {
-//		        PORTA ^= (1<<PINA0);                // toggle test led  (for testing signal to Pi)
-
-		        OCR1AH = adc_hibyte;   
-		        OCR1AL = adc_lobyte;   
-    		    OCR1A =   raw_adc;                  // set OCR1A value for Timer1 (sets frequency)
-
-		        OCR1B =   raw_adc/10;               // set OCR1B value for Timer1 (sets duty cycle)
-                raw_adc_old=raw_adc;
-                }
-}
-
-//---------------------------------------------------------
 // Function pwm_acheck)                          
 //  Check if Inputs from DIP-Switch (PINB0/PINB1/PINB2) has changed
 //  Set OCR1A accordingly or activate ADC
 void pwm_check(void) {
 
-  if (!generate_pulse) return;        // DIP Switch 1 is off, do nothing
+  if (!generate_pulse)  {
+        return; }       // DIP Switch 1 is off, do nothing
 
 //    if (TCCR1B== 0x00) {return;}      // Timer not on, do nothing
 
@@ -182,74 +131,67 @@ void pwm_check(void) {
 
           switch (was)                  // what is set on the Dip Switch ? Selects frequency
           {
-            case 0:
-            {
-              TCNT1=0 ; 
-              pwm_adc();
-              return;
-            }
-            case 1:
+            case 0:                     // switch 0 0 0
             {
               TCCR1B |=   (1<<CS12);              // Clock select for Counter: Prescaler /256  Table 12-6
-              OCR1A=7812;                         // 0.5 HZ
+              OCR1A=19530;                        // 0.2 HZ  / 5000 ms
+              OCR1B=2000;                         // set OCR1B value for Timer1 (sets duty cycle)
+              return;
+            }
+            case 1:                      // switch 0 0 1
+            {
+              TCCR1B |=   (1<<CS12);              // Clock select for Counter: Prescaler /256  Table 12-6
+              OCR1A=7811;                         // 0.5 HZ  / 2000 ms
               OCR1B=700;                          // set OCR1B value for Timer1 (sets duty cycle)
-              ADCSRA &= ~(1<<ADEN);               // shut down the ADC
               return;
             }
-            case 2:
+            case 2:                     // switch 0 1 0
             {
               TCCR1B |=  (1<<CS10) |  (1<<CS11);  // Clock select for Counter: Prescaler /64  Table 12-6
-              OCR1A=15625;                        // 1 HZ
+              OCR1A=15624;                        // 1 HZ / 1000 ms
               OCR1B=1400;                         // set OCR1B value for Timer1 (sets duty cycle)
-              ADCSRA &= ~(1<<ADEN);               // shut down the ADC
               return;
             }
-            case 3:
+            case 3:                     // switch 0 1 1
             {
               TCCR1B |=  (1<<CS10) |  (1<<CS11);  // Clock select for Counter: Prescaler /64  Table 12-6
-              OCR1A=3125;                         // 5 Hz
+              OCR1A=3124;                         // 5 Hz  / 200 ms
               OCR1B=300;                          // set OCR1B value for Timer1 (sets duty cycle)
-              ADCSRA &= ~(1<<ADEN);               // shut down the ADC
               return;
             }
-            case 4:
+            case 4:                     // switch 1 0 0
             {
               TCCR1B |=  (1<<CS10) |  (1<<CS11);  // Clock select for Counter: Prescaler /64  Table 12-6
-              OCR1A=1562;                         // 10HZ
+              OCR1A=1562;                         // 10HZ / 100ms
               OCR1B=140;                          // set OCR1B value for Timer1 (sets duty cycle)
-              ADCSRA &= ~(1<<ADEN);               // shut down the ADC
               return;
             }
-            case 5:
+            case 5:                     // switch 1 0 1
             {
               TCCR1B |=  (1<<CS11) ;              // Clock select for Counter: Prescaler /8 Table 12-6
-              OCR1A=2500;                         // 50HZ
+              OCR1A=2500;                         // 50HZ / 20 ms
               OCR1B=250;                          // set OCR1B value for Timer1 (sets duty cycle)
-              ADCSRA &= ~(1<<ADEN);               // shut down the ADC
               return;
             }
-            case 6:
+            case 6:                     // switch 1 1 0
             {
               TCCR1B |=   (1<<CS11);              // Clock select for Counter: Prescaler /8  Table 12-6
-              OCR1A=1250;                         // 100HZ
+              OCR1A=1249;                         // 100HZ / 10 ms
               OCR1B=100;                          // set OCR1B value for Timer1 (sets duty cycle)
-              ADCSRA &= ~(1<<ADEN);               // shut down the ADC
               return;
             }
-            case 7:
+            case 7:                      // switch 1 1 1
             {
               TCCR1B |=   (1<<CS10);              // Clock select for Counter: Prescaler /1  Table 12-6
-              OCR1A=5000;                         // 200HZ
+              OCR1A=4999;                         // 200HZ / 5 ms
               OCR1B=500;                          // set OCR1B value for Timer1 (sets duty cycle)
-              ADCSRA &= ~(1<<ADEN);               // shut down the ADC
               return;
             }
             default:                            // do 1 sec (as in case 2)
             {
               TCCR1B |=  (1<<CS10) |  (1<<CS11);  // Clock select for Counter: Prescaler /64  Table 12-6
-              OCR1A=15625;                        // 1 HZ
+              OCR1A=15624;                        // 1 HZ
               OCR1B=1400;                         // set OCR1B value for Timer1 (sets duty cycle)
-              ADCSRA &= ~(1<<ADEN);               // shut down the ADC
               return;
             }
 
@@ -259,12 +201,7 @@ void pwm_check(void) {
         else // no input change
         {
         
-        if (was == 0) {                      // all three inputs are low 
-          pwm_adc();                      // ADC is used to set OCR1A
-          return;
-        }        
-           
-		}       // ende was==0
+           }       // ende 
 }
 //  End of Code
 //
