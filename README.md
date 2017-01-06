@@ -1,4 +1,4 @@
-# iswitchpi
+# iSwitchPi
 Intelligent Power Switch for Raspberry Pi 
 
 Native Raspberry Pi does not have an On/Off switch and there is no easy way
@@ -17,6 +17,7 @@ Formfactor: Raspi hat with 2x20 Pins for other hats on top of iSwitchPi.
 Full Documentation, Code and EagleCAD files on GitHub. 
 Documentation is in English and German.
 Quick Start guide explains installation.  
+See state diagram to understand operation of iSwitchPi
 
 Also check out my project webpage at 
 http://projects.descan.com/projekt5.html
