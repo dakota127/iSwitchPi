@@ -69,17 +69,17 @@
 #define REPEAT_NEXT     20                  // every 200ms
 // definitions for Debounce Code
 
-#define POWEROFF_Delay_HALT_long     30           // 30 seconds  (use 20 for test)
-#define POWEROFF_Delay_HALT_short    15           // 15 seconds  (use 20 for test)
+#define POWEROFF_Delay_HALT_long     30           // seconds  (use 20 for test)
+#define POWEROFF_Delay_HALT_short    15           // seconds  (use 20 for test)
 
-#define POWEROFF_Delay_REBOOT_long   60           // 60 seconds  (use 20 for test)
-#define POWEROFF_Delay_REBOOT_short  25           // 25 seconds  (use 20 for test)
+#define POWEROFF_Delay_REBOOT_long   50           // seconds  (use 20 for test)
+#define POWEROFF_Delay_REBOOT_short  20           // seconds  (use 20 for test)
 
-#define PULSCHECK               3           // 3 times 10 ms intervall check pulses from Pi
+#define PULSCHECK               4           // 10 times 10 ms intervall check pulses from Pi
 #define PULSCHECK_SECONDS       6           // ccount pulses from Pi during this time
 
-#define POWERON_Delay_long      80          // 80 seconds (use 20 for test)
-#define POWERON_Delay_short     20          // 20 seconds (use 20 for test)
+#define POWERON_Delay_long      50          // seconds (use 20 for test)
+#define POWERON_Delay_short     20          // seconds (use 20 for test)
 
 #define POWERON_Blink_int  15               // 15 x 10 ms
 #define POWEROFF_Blink_int 60               // 60 x 10 ms
@@ -246,8 +246,8 @@ void mytimer()   {                       // every 10m{
 
     if (tick3 > PULSCHECK)  {            // every PULSCHECK times 10 ms: check pulses from Pi
         tick3=0;                         // and send signal to Pi if key was pressed (and only then)
-             // check signal from Pi every 100 ms
-            // Pin FROMPI ist set to Input
+                                          // check signal from Pi every 100 ms
+                                          // Pin FROMPI ist set to Input
         if (PINA & (1<<FROMPI))       // pin ist high
             {
             if (waslo==1)  {             // Pi signals I am alive, pin was low before, goes to high
@@ -268,12 +268,13 @@ void mytimer()   {                       // every 10m{
             }
     }       // end check Pi
 
-    // store number of pulses that came in within the last 5 seconds and reset counter
-    if (sekunde2 == PULSCHECK_SECONDS) {                // 5 sekunden lang zählen wir die pi pulse
+    // store number of pulses that came in within the last PULSCHECK_SECONDS seconds and reset counter
+    if (sekunde2 > PULSCHECK_SECONDS) {           // for PULSCHECK_SECONDS seconds we count pulses from pi
         pastpulses=pipulses;            // store number of pulses
         pipulses=0;                     // reset puls counter
         sekunde2=0;
         }
+
 // done with th Pi related stuff
 
 }
@@ -444,7 +445,7 @@ int main( void )
             state=state5;                          // next state 5
             poweroff_delay=POWEROFF_Delay_HALT_long;  // Poweroff delay for halt
             if ( !(PINA & (1<<DELAYTIME)) ) {
-              poweroff_delay=POWEROFF_Delay_HALT_short;                 // check pin PA6 for delay times (Dip-switch 4 Pos 2 ON)
+              poweroff_delay=POWEROFF_Delay_HALT_short;        // check pin PA6 for delay times (Dip-switch 4 Pos 2 ON)
               }
 
             }
@@ -485,7 +486,7 @@ int main( void )
             first_time &= ~( 1<<4)  ;                // clear first_time this state
             }
             pwm_check();                        //  Pulse generation
-                                                //  Check DIP-Switch (PINB0 to PINB2) and Analog Input on PINA6
+                                                //  Check DIP-Switch (PINB0 to PINB2)
 
         if  (get_key_short( 1<<KEY0 ))  {        // get debounced keypress short
             cli();
@@ -518,8 +519,8 @@ int main( void )
             first_time =0xff;                        // set first_time all other states
             first_time &= ~( 1<<5)  ;                // clear first_time this state
             }
-            pwm_check();                        //  Pulse generation
-                                                //  Check DIP-Switch (PINB0 to PINB2) and Analog Input on PINA6
+  //          pwm_check();                        //  Pulse generation
+                                                //  Check DIP-Switch (PINB0 to PINB2)
 
        if  (get_key_short( 1<<KEY0 )) {         // get debounced keypress short
             state=state3;
@@ -543,7 +544,7 @@ int main( void )
 
         break;
 /*------------------------------------------------------------------*/
-/*  state 6  Last Chance                                            */
+/*  state 6  Last Chance    (check if Pi rebooted)                  */
 /*  we are about to switch 5 Volt power off                         */
 /*  but before we do that we check the signal from Pi again :       */
 /*  If further pulses came in (Pi rebooted) we keep power on        */
