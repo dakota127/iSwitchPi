@@ -1,22 +1,22 @@
 /************************************************************************/
 /*                                                                      */
-/*	Intelligent Power Switch for Raspberry Pi                           */   
-/*  																    */ 
-/*	Implements Finite State Machine   with 7 States 	                */  
+/*	Intelligent Power Switch for Raspberry Pi                           */
+/*  																    */
+/*	Implements Finite State Machine   with 7 States 	                */
 /*	Pulsegeneration is done in square.c  [ functions pwm_xx() ]         */
-/* 									                                    */  
-/*	See project description for full details				            */  
-/*                                                                      */  
-/*		ATTiny44  Pin Usage						                        */  
+/* 									                                    */
+/*	See project description for full details				            */
+/*                                                                      */
+/*		ATTiny44  Pin Usage						                        */
 /*	   				         ----o----                                  */
-/*       	     	    VCC|       |GND									*/	
+/*       	     	    VCC|       |GND									*/
 /*     DIP 1   	    PB0|       |PA0		TESTPIN						    */
 /*     DIP 2       	PB1|       |PA1		5V on/off						*/
 /*     Reset       	PB3|       |PA2		TofromPi					    */
 /*     DIP 3       	PB2|       |PA3		Led								*/
 /*     TESTPIN      PA7|       |PA4		Pushbutton					    */
 /*     Delay       	PA6|       |PA5		Squarewave out                  */
-/*                	  	--------     					    		     */  
+/*                	  	--------     					    		     */
 /*                                                                      */
 /*	Uses Timer0 for debouncing pushbutton and Timer1 for generation     */
 /*  of square wave on Pin PA5  (Fast PWM mode)   						*/
@@ -31,10 +31,10 @@
 /************************************************************************/
 //  Quelle und Diskussion des Debounce Code siehe hier:
 //  http://www.mikrocontroller.net/topic/48465
-//  Eintrag 
+//  Eintrag
 //  Autor: Peter Dannegger (peda)
 //  Datum: 16.06.2010 22:28
-//------------------------------------------------------------------------                        
+//------------------------------------------------------------------------
 
 #include <avr/io.h>
 #include <avr/interrupt.h>
@@ -48,7 +48,7 @@
 #define KEY_PORT        PINA                // Port A on ATtiny44
 #define VPOWER          PINA1               // 5 Volt Power on/off
 #define FROMPI          PINA2               // signal from and to Pi
-#define LED1            PINA3               // green led 
+#define LED1            PINA3               // green led
 #define LED2            PINA5               // orange led (TESTMODE ONLY)
                                             // in normal mode used as Output Compare Pin OC1B see square.c
 #define KEY0            PINA4               // pushbutton on Pin4
@@ -58,9 +58,9 @@
 // version2
 #else
 #define TESTPIN         PINA0              // TESTPIN no pulses fromPi required
-#define DELAYTIME       PINA6              // short or long wait times
-
-#define SQUARE          PINA7               // Pulsgeneration on/off (DIP Switch 1) 
+#define DELAYTIME       PINA6              // long or short wait times (selectable by Dip-switch 4 Pos 2 ON=short)
+                                            // use short for Raspberry Pi 3 which boots/shutsdown faster
+#define SQUARE          PINA7               // Pulsgeneration on/off (DIP Switch 1)
 #endif                                       // used in square.c
                                             // square wave output on  PINA5
 // definitions for Debounce Code
@@ -82,12 +82,12 @@
 #define POWERON_Delay_short     20          // 20 seconds (use 20 for test)
 
 #define POWERON_Blink_int  15               // 15 x 10 ms
-#define POWEROFF_Blink_int 60               // 60 x 10 ms 
-#define TESTMODE_Blink_int 300              // 200 ms  
+#define POWEROFF_Blink_int 60               // 60 x 10 ms
+#define TESTMODE_Blink_int 300              // 200 ms
 #define REGULAR_Blink       1
 #define PULSED_Blink        2
 #define STANDBY_Blink_int_on   3
-#define STANDBY_Blink_int_off  250          // can be max 255  
+#define STANDBY_Blink_int_off  250          // can be max 255
 
 #define PULSELENGTH1  80                    // Signal to PI , ms
 #define PULSELENGTH2  500                    // Signal to PI , ms
@@ -103,6 +103,8 @@ uint8_t blinkwhat;                          // blink intervall
 uint8_t blinkon;                            // blink ON=1  (Standby blink only
 uint8_t poweroff_delay;                     // either POWEROFF_Delay_HALT_long or POWEROFF_Delay_REBOOT_long
 uint8_t key_state;                          // debounced and inverted key state:
+uint8_t poweron_delay;                     //
+
                                             // bit = 1: key pressed
 uint8_t key_press;                          // key press detect
 uint8_t key_rpt;                            // key long press and repeat
@@ -127,7 +129,7 @@ static uint8_t pastpulses=0;
 void mytimer(void);
 void sendtopi(int);
 void sendtopi_2(int);
- 
+
 //-------------------------------------------------------------------
 // debounce functions from Peter Dannegger
 // http://www.mikrocontroller.net/topic/tasten-entprellen-bulletproof
@@ -220,7 +222,7 @@ ISR( TIM0_COMPA_vect )                          // every 10ms
   }
 
     mytimer();              // handle my own timer stuff
-    
+
 }
 
 //----------------------------------------------------
@@ -230,12 +232,12 @@ ISR( TIM0_COMPA_vect )                          // every 10ms
 void mytimer()   {                       // every 10m{
 // count ticks (one tick every 10 ms)
     tick++;                             // tick is used for adding seconds
-    tick2++;                            // tick2 is used for led blinking 
-    tick3++;                            // tick3 is used for Pi related stuff 
+    tick2++;                            // tick2 is used for led blinking
+    tick3++;                            // tick3 is used for Pi related stuff
 
     if(tick > 100) {                     // 100 times 10 ms equals a second
-        sekunde++;                       // seconds used for poweron/off delays    
-        sekunde2++;                      // seconds used for pulses from pi    
+        sekunde++;                       // seconds used for poweron/off delays
+        sekunde2++;                      // seconds used for pulses from pi
         tick = 0;
     }
 
@@ -248,23 +250,23 @@ void mytimer()   {                       // every 10m{
             // Pin FROMPI ist set to Input
         if (PINA & (1<<FROMPI))       // pin ist high
             {
-            if (waslo==1)  {             // Pi signals I am alive, pin was low before, goes to high           
+            if (waslo==1)  {             // Pi signals I am alive, pin was low before, goes to high
                 washi=1;
-                pipulses++;              // count pulses from Pi         
+                pipulses++;              // count pulses from Pi
                 waslo=0;
-                }     
+                }
             }
         else if (washi==1) {            // Input is low again
             waslo=1;                    // if we have to send something, do it now!!
             washi=0;
 
             if (sendnow != 0)  {           // we need to send puls(es) to the Pi
-                _delay_ms(100);             // give the Pi time to set up its IR Handler 
+                _delay_ms(100);             // give the Pi time to set up its IR Handler
                 sendtopi(sendnow);         // variable sendnow says how many (one or two)
                 sendnow=0;                 // no more to be sent
                 }
-            }      
-    }       // end check Pi 
+            }
+    }       // end check Pi
 
     // store number of pulses that came in within the last 5 seconds and reset counter
     if (sekunde2 == PULSCHECK_SECONDS) {                // 5 sekunden lang zählen wir die pi pulse
@@ -272,24 +274,24 @@ void mytimer()   {                       // every 10m{
         pipulses=0;                     // reset puls counter
         sekunde2=0;
         }
-// done with th Pi related stuff 
+// done with th Pi related stuff
 
 }
 
 //----------------------------------------------------
-// --- Function blink orange led  (TESTMODE ONLY) 
+// --- Function blink orange led  (TESTMODE ONLY)
 //----------------------------------------------------
 void blink_led() {
     PORTA |= (1<<LED2);               //orange led on
     _delay_ms (TESTMODE_Blink_int);
     PORTA &= ~( 1<<LED2);             //one pulse
     _delay_ms (50);
-    
+
     }
 
 //----------------------------------------------------
 // --- Fuction send pulses to pi
-//  send simple pulses 
+//  send simple pulses
 //----------------------------------------------------
 void sendtopi(int what) {
 
@@ -306,7 +308,7 @@ void sendtopi(int what) {
         }
     DDRA  &= ~(1<<FROMPI);                  // set to Input again (from Pi)
 
- }             
+ }
 
 
 //-------------------------------------------------------
@@ -320,21 +322,21 @@ int main( void )
     DDRA  &= ~(1<<TESTPIN);                        // set to Input (TESTPIN) is used for simulation without pulses from Pi
                                                     // used for Testing ONLY, must be not connected
                                                     // for normal operation !!
-    PORTA |= (1<<TESTPIN);                         //  set pullup 
-    DDRA  &= ~(1<<DELAYTIME);                       // Select Timer values for on/off  (short for Pi 3) 
-    PORTA |= (1<<DELAYTIME);                         //  set pullup 
-    PORTA &= ~(1<<FROMPI);                         // no pullup - has external pulldown 
-    PORTA &= ~( 1<<LED1 | 1<<VPOWER );             // all outputs off 
+    PORTA |= (1<<TESTPIN);                         //  set pullup
+    DDRA  &= ~(1<<DELAYTIME);                       // Select Timer values for on/off  (use short for Pi 3)
+    PORTA |= (1<<DELAYTIME);                        //  set pullup
+    PORTA &= ~(1<<FROMPI);                         // no pullup - has external pulldown
+    PORTA &= ~( 1<<LED1 | 1<<VPOWER );             // all outputs off
 
     PORTA &= ~(1<<KEY0);                           // no pullup on Key-Input, has external pullup
-    
+
     // TIMER 0 konfig - used for Peter Dannegger's debounce-Functions
     TCCR0A = 1<<WGM01;                             // Timer0 Mode CTC
-    TCCR0B = 1<<CS02 | 1<<CS00;                    // Timer/Counter0 source is F_CPU / 1024 
+    TCCR0B = 1<<CS02 | 1<<CS00;                    // Timer/Counter0 source is F_CPU / 1024
     OCR0A = F_CPU / 1024.0 * 10e-3 - 0.5;          // 10 ms compare Value for counter/timer (Prescaler: 10ms interrupt)
     TIMSK0 = 1<<OCIE0A;                             // Enable compare Match interrupt on Timer/Counter 0
                                                     // Achtung: TIMSK für tiny85 und TIMSK0 für tiny44
- 
+
     pwm_init();                                     // setup Timer 1 for variable pulse on PA5
     sei();                                          // Interrupt enable
     blinkwhat=0x00;                                 // do not blink
@@ -343,11 +345,11 @@ int main( void )
                                                     // bit 1: state 2
                                                     // bit 2: state 3
                                                     // etc.
-//   
+//
 // ---- Main Loop. forever ---------------------
 // ---- Implements State Machine ---------------
   for(;;)
-  {                 
+  {
  //   _delay_ms(10);                                // for testing
 
     switch (state) {
@@ -363,6 +365,10 @@ int main( void )
             PORTA &= ~( 1<<LED1 | 1<<VPOWER);   // all outputs off
             key_clear( 1<<KEY0 );
             blinkwhat=PULSED_Blink;
+            poweron_delay=POWERON_Delay_long;
+            if ( !(PINA & (1<<DELAYTIME)) ) {
+              poweron_delay=POWERON_Delay_short;            // check pin PA6 for delay times (Dip-switch 4 Pos 2 ON)
+            }
             tick2=0;
             blinkon=1;
             pwm_stop();							// stop pulse genaration output on PA5
@@ -384,31 +390,31 @@ int main( void )
 /*  Short keypress switches to state 4   (power on without checking */
 /*  whether Pi is on)                                               */
 /*------------------------------------------------------------------*/
-    case state2: 
- 
+    case state2:
+
         if (first_time & (1<<1))   {            // first_time time throu ?
             PORTA |= (1<<VPOWER);               //switch 5 volt power on
             blinkwhat=REGULAR_Blink;
-            blinkint=POWERON_Blink_int;    
+            blinkint=POWERON_Blink_int;
             tick2=0;                            //start timer
             sekunde=0;
             pwm_start();						            // start pulse generation output on PA5
             first_time =0xff;                   // set first_time all other states
             first_time &= ~( 1<<1)  ;           // clear first_time this state
             }
-        
+
         pwm_check();
-    
-        if ((blinkwhat>0) && (sekunde > POWERON_Delay_long))  {  
+
+        if ((blinkwhat>0) && (sekunde > poweron_delay))  {
             blinkwhat=0;
-            state=state1;                       // Pi did not come on, so gaback to stand by   
+            state=state1;                       // Pi did not come on, so gaback to stand by
             }
-            
+
         if  (get_key_short( 1<<KEY0 ))  {        // get debounced keypress short
             blinkwhat=0;
-            state=state4; 
+            state=state4;
            }
-                    // how many pi pulses have we received ? if we have Pi is alive 
+                    // how many pi pulses have we received ? if we have Pi is alive
                     // so we go to state 3 (normal operation state)
             if (pastpulses > 3) {state=state3;}
 
@@ -423,7 +429,7 @@ int main( void )
 /*------------------------------------------------------------------*/
     case state3:
         if (first_time & (1<<3))  {                   // first_time time throu ?
-            PORTA |= (1<<LED1);                // led full on      
+            PORTA |= (1<<LED1);                // led full on
             blinkwhat=0;
             key_clear( 1<<KEY0 );
             first_time =0xff;                        // set first_time all other states
@@ -437,22 +443,29 @@ int main( void )
             sei();                               // Interrupt enable
             state=state5;                          // next state 5
             poweroff_delay=POWEROFF_Delay_HALT_long;  // Poweroff delay for halt
+            if ( !(PINA & (1<<DELAYTIME)) ) {
+              poweroff_delay=POWEROFF_Delay_HALT_short;                 // check pin PA6 for delay times (Dip-switch 4 Pos 2 ON)
+              }
+
             }
 
         if( get_key_long( 1<<KEY0 ))   {         // get debounced keypress long
-            cli();            
+            cli();
             sendnow=2;                          // set flag so IR handler can send signal
             sei();                                 // Interrupt enable
             state=state5;                          // next state 5
                                                     // Pi will reboot
             poweroff_delay=POWEROFF_Delay_REBOOT_long;  // Poweroff delay for halt
-         
+            if ( !(PINA & (1<<DELAYTIME)) ) {
+              poweroff_delay=POWEROFF_Delay_REBOOT_short;   // check pin PA6 for delay times (Dip-switch 4 Pos 2 ON)
+              }
+
             }
-            
+
             // check numer of pulses from Pi, zero means: Pi is not alive
              if (pastpulses < 2 )  {
                 state=state5;                           // ok, start power off sequence
-                poweroff_delay=POWEROFF_Delay_REBOOT_long;   // Poweroff delay for halt
+                poweroff_delay=POWEROFF_Delay_HALT_long;   // Poweroff delay for halt
                 }
         break;
 
@@ -464,7 +477,7 @@ int main( void )
 /*------------------------------------------------------------------*/
     case state4:
         if (first_time & (1<<4))   {                  // first_time time throu ?
-            PORTA |= (1<<LED1);                // led full on 
+            PORTA |= (1<<LED1);                // led full on
             blinkwhat=0;
             key_clear( 1<<KEY0 );               // ignore keypresses that might have come
 
@@ -480,9 +493,9 @@ int main( void )
             sei();                               // Interrupt enable
             state=state5;
             _delay_ms(10);
-            poweroff_delay=POWEROFF_Delay_REBOOT_long;  // Poweroff delay for halt
+            poweroff_delay=POWEROFF_Delay_HALT_long;  // Poweroff delay for halt
 
-            }      
+            }
         break;
 
 /*------------------------------------------------------------------*/
@@ -513,12 +526,12 @@ int main( void )
             }
         if( get_key_long( 1<<KEY0 ))  {          // get debounced keypress long
             state=state1;                          // next state 5
-                                                    // Pi will reboot         
+                                                    // Pi will reboot
             }
 
-/*   removed this - not in state diagram 
+/*   removed this - not in state diagram
             // check Signal from Pi, how many pulses have we received
-        if (pastpulses > 4)   {                    // Pi seems to ba alive, ok keep power on        
+        if (pastpulses > 4)   {                    // Pi seems to ba alive, ok keep power on
             state=state3;
             }
 */
@@ -545,9 +558,9 @@ int main( void )
             state=state3;
             }
         else state=state1;
-        
-      break;           
-    
+
+      break;
+
 /*------------------------------------------------------------------*/
 /*  state 7  TESTMODE only                                          */
 /*  Power to Pi is switched on, green led is on                     */
@@ -558,12 +571,12 @@ int main( void )
     case state7:
         if (first_time & (1<<7))   {            // first_time time throu ?
             PORTA |= (1<<VPOWER);               //switch 5 volt power on
-            PORTA |= (1<<LED1);                // led full on      
+            PORTA |= (1<<LED1);                // led full on
             blinkwhat=0;
             key_clear( 1<<KEY0 );
             tick2=0;                            //start timer
             sekunde=0;
-            blink_led(); 
+            blink_led();
             first_time =0xff;                        // set first_time all other states
             first_time &= ~( 1<<7)  ;                // clear first_time this state
             }
@@ -573,50 +586,50 @@ int main( void )
 
             // check Signal from Pi blink orange led when 2 pulses have been received
             if (pastpulses > 2)  {
-                blink_led();  
+                blink_led();
                 pastpulses=0;
-             }           
-    }    
-        
+             }
+    }
+
 //----  End of Switch Statement -----------------------------
 
 //----------------------------------------------------------
-//  Handle Led blinking - fast, slow or pulse  
+//  Handle Led blinking - fast, slow or pulse
 
     switch (blinkwhat)
     {
-    
+
     case  REGULAR_Blink:            // blink tempo regular
         {
         if (tick2==blinkint)        // this is intervall
             {
-            PORTA ^= (1<<LED1);   
+            PORTA ^= (1<<LED1);
             tick2=0;
-            }   
+            }
         }
-        
+
     case PULSED_Blink:              // pulse blink (short pulse)
         {
         if (blinkon==1)
             {
-            if (tick2==STANDBY_Blink_int_off)  {  
-                PORTA ^= (1<<LED1);   
-                tick2=0; 
-                blinkon=0;  
+            if (tick2==STANDBY_Blink_int_off)  {
+                PORTA ^= (1<<LED1);
+                tick2=0;
+                blinkon=0;
                 }
             }
         else
             {
             if (tick2==STANDBY_Blink_int_on)   {
-                PORTA ^= (1<<LED1);   
-                tick2=0; 
+                PORTA ^= (1<<LED1);
+                tick2=0;
                 blinkon=1;
-                }  
-            } 
+                }
+            }
         }
-    
+
     }
-//---- End Switch blink  
+//---- End Switch blink
   }
 //---- End of for loop
 }
