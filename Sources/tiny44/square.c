@@ -40,10 +40,10 @@ static uint8_t  pinold,was, first=1, generate_pulse;
 void pwm_init(void) {
 	DDRA |= (1<<PINA5);	                // Outpu Compare Pin OC1B als Ausgang (PA5)
 
-	DDRA &= ~(1<<PINA7);                 // input DIP Switch 1
-	DDRB &= ~(1<<PINB0);                 // input DIP Switch
-	DDRB &= ~(1<<PINB1);                 // input DIP Switch
-	DDRB &= ~(1<<PINB2);                 // input DIP Switch
+	DDRA &= ~(1<<PINA7);                 // input DIP 2 Position 1
+	DDRB &= ~(1<<PINB0);                 // input DIP 2 Position 4
+	DDRB &= ~(1<<PINB1);                 // input DIP 2 Position 3
+	DDRB &= ~(1<<PINB2);                 // input DIP 2 Position 2
 //    DDRA |= (1<<PINA0);                  // TestLED nur für Test
     	 
 	PORTB |= (1<<PINB0)| (1<<PINB1)  | (1<<PINB2);    // pull upp
