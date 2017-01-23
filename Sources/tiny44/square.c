@@ -4,15 +4,15 @@
 /*  PINA7 defines Pulse Generation on/off                               */
 /*  Frequency is determined by input pins PINB0/PINB1/PINB2             */
 /*  Timer1 mode ist Fast PWM                                            */
-/*  PINB2   PINB1   PINB0       FREQUENCY                               */
-/*  0       0       0           0.2 Hz                                  */
-/*  0       0       1           0.5 HZ                                  */
-/*  0       1       0           1 HZ                                    */
-/*  0       1       1           5 HZ                                    */
-/*  1       0       0           10 HZ                                   */
-/*  1       0       1           50 HZ                                   */
-/*  1       1       0           100 HZ                                  */
-/*  1       1       1           200 HZ                                  */
+/*  PINA7 PINB2   PINB1   PINB0       FREQUENCY                         */
+/*    0      0       0       0           Pulse generation off           */
+/*    1      0       0       1           0.5 HZ                         */
+/*    1      0       1       0           1 HZ                           */
+/*    1      0       1       1           5 HZ                           */
+/*    1      1       0       0           10 HZ                          */
+/*    1      1       0       1           50 HZ                          */
+/*    1      1       1       0           100 HZ                         */
+/*    1      1       1       1           200 HZ                         */
 /*                                                                      */
 /*  Duty Cycle is ~10%, set with  OCR1B                                 */
 /*                                                                      */
