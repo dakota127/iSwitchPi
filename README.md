@@ -22,6 +22,12 @@ See state diagram to understand operation of iSwitchPi
 Also check out my project webpage at 
 http://projects.descan.com/projekt5.html
 
+Update April 2017:
+In April of 2017 an update was made to the firmware in the ATtiny44. 
+A user requested an auto-power-on functionality: the Pi should restart 
+unattended (meaning without the need to press the ON-pushbutton) when 5 Volt comes back after a power failure. 
+State 0 was added to the state diagram  and position 4 of dip-switch 3 is used to select/deselect this feature.
+
 Free to use, modify, and distribute with proper attribution.
 Frei für jedermann, vollständige Quellangabe vorausgesetzt.
 
