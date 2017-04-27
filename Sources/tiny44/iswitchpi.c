@@ -61,6 +61,7 @@
 #define DELAYTIME       PINA6              // long or short wait times (selectable by Dip-switch 4 Pos 2 ON=short)
                                             // use short for Raspberry Pi 3 which boots/shutsdown faster
 #define SQUARE          PINA7               // Pulsgeneration on/off (DIP Switch 1)
+#define AUTO_POWER      PINB0               // Auto Power-on Input
 #endif                                       // used in square.c
                                             // square wave output on  PINA5
 // definitions for Debounce Code
@@ -92,6 +93,15 @@
 #define PULSELENGTH1  80                    // Signal to PI , ms
 #define PULSELENGTH2  500                    // Signal to PI , ms
 
+#define STAT0_FIRST     0                      // bit Position für First Time Switch
+#define STAT1_FIRST     1                      // bit Position für First Time Switch
+#define STAT2_FIRST     2                      // bit Position für First Time Switch
+#define STAT3_FIRST     3                      // bit Position für First Time Switch
+#define STAT4_FIRST     4                      // bit Position für First Time Switch
+#define STAT5_FIRST     5                      // bit Position für First Time Switch
+#define STAT6_FIRST     6                      // bit Position für First Time Switch
+#define STAT7_FIRST     7                      // bit Position für First Time Switch
+
 static unsigned char sekunde;
 static unsigned char sekunde2;
 
@@ -110,7 +120,8 @@ uint8_t key_press;                          // key press detect
 uint8_t key_rpt;                            // key long press and repeat
 volatile uint8_t key_release;               // key release detect
 
-enum {                                      // finite state machins states
+enum {
+    state0,                                      // finite state machins states
     state1,
     state2,
     state3,
@@ -120,7 +131,7 @@ enum {                                      // finite state machins states
     state7
     };
 static uint8_t first_time = 0xff;                // first_time run through a state, bitwise, bit 0 means state 1
-static uint8_t state=state1;                       // state variable
+static uint8_t state=state0;                       // state variable
 static uint8_t pipulses=0;                          // key press detect
 static uint8_t waslo=1;                  // key press detect
 static uint8_t washi=0;                  // key press detect
@@ -323,9 +334,13 @@ int main( void )
     DDRA  &= ~(1<<TESTPIN);                        // set to Input (TESTPIN) is used for simulation without pulses from Pi
                                                     // used for Testing ONLY, must be not connected
                                                     // for normal operation !!
+	DDRB &= ~(1<<AUTO_POWER);                            // input DIP 2 Position 4   auto-power-on
+                                                    
     PORTA |= (1<<TESTPIN);                         //  set pullup
     DDRA  &= ~(1<<DELAYTIME);                       // Select Timer values for on/off  (use short for Pi 3)
     PORTA |= (1<<DELAYTIME);                        //  set pullup
+    PORTB |= (1<<AUTO_POWER);                            // pull up auto-power-on
+ 
     PORTA &= ~(1<<FROMPI);                         // no pullup - has external pulldown
     PORTA &= ~( 1<<LED1 | 1<<VPOWER );             // all outputs off
 
@@ -338,14 +353,24 @@ int main( void )
     TIMSK0 = 1<<OCIE0A;                             // Enable compare Match interrupt on Timer/Counter 0
                                                     // Achtung: TIMSK für tiny85 und TIMSK0 für tiny44
 
-    pwm_init();                                     // setup Timer 1 for variable pulse on PA5
+    pwm_init();                                     // setup Timer 1 for variable pulse on PA5 also set PORTB
     sei();                                          // Interrupt enable
     blinkwhat=0x00;                                 // do not blink
     first_time = 0xff;                                   //bits for first_time run thru the states
-                                                    // bit 0: state 1
-                                                    // bit 1: state 2
-                                                    // bit 2: state 3
+                                                    // bit 0: state 0
+                                                    // bit 1: state 1
+                                                    // bit 2: state 2
                                                     // etc.
+    state=state0;                       // state variable
+    PORTA &= ~( 1<<LED1 | 1<<VPOWER);   // all outputs off
+
+    if ( !(PINB & (1<<AUTO_POWER)) )   // check if auto power on is required (dip switch Pos 4 ON)
+            state=state2;           // if YES: next state is state 2   
+        else
+            state=state1;           // if NO: next state is state 1  
+
+   _delay_ms(10);                       // for testing
+
 //
 // ---- Main Loop. forever ---------------------
 // ---- Implements State Machine ---------------
@@ -355,27 +380,44 @@ int main( void )
 
     switch (state) {
 /*------------------------------------------------------------------*/
+/*  state 0  Initial State State                                    */
+/*  is entered upon 5 Volt Power on                                 */
+/*  check if Pi auto power-on is selected  (dip Switch)             */
+/*  if NO --> goto state 1                                          */
+/*  if YES --> goto state 2                                         */
+/*------------------------------------------------------------------*/
+    case state0:
+        if (first_time & (1<<STAT0_FIRST)) {    // first_time time throu ?
+            first_time =0xff;                   // set first_time all other states
+            first_time &= ~(1<<STAT0_FIRST);              // clear first_time this state
+        }
+        tick2=0;
+        pastpulses=0;                       // pulse counter reset (pulses from Pi)
+ 
+        if ( !(PINB & (1<<AUTO_POWER)) )   // check if auto power on is required (dip switch Pos 4 ON)
+            state=state2;           // if YES: next state is state 2   
+        else
+            state=state1;           // if NO: next state is state 1  
+
+    break;
+ 
+/*------------------------------------------------------------------*/
 /*  state 1  Stand-by State, all is off, waiting for short keypress  */
 /*  Power to Pi ist off, led blinks short pulses                                 */
 /*  Waiting for short keypress                                      */
 /*------------------------------------------------------------------*/
     case state1:
 
-        if (first_time & (1<<0))     // first_time time throu ?
-            {
+        if (first_time & (1<<STAT1_FIRST)) {    // first_time time throu ?
             PORTA &= ~( 1<<LED1 | 1<<VPOWER);   // all outputs off
             key_clear( 1<<KEY0 );
             blinkwhat=PULSED_Blink;
-            poweron_delay=POWERON_Delay_long;
-            if ( !(PINA & (1<<DELAYTIME)) ) {
-              poweron_delay=POWERON_Delay_short;            // check pin PA6 for delay times (Dip-switch 4 Pos 2 ON)
-            }
             tick2=0;
             blinkon=1;
             pwm_stop();							// stop pulse genaration output on PA5
             pastpulses=0;                       // pulse counter reset (pulses from Pi)
-            first_time =0xff;                        // set first_time all other states
-            first_time &= ~(1<<0);                   // clear first_time this state
+            first_time =0xff;                   // set first_time all other states
+            first_time &= ~(1<<STAT1_FIRST);    // clear first_time this state
             }
         if  (get_key_short( 1<<KEY0 )) {         // get debounced keypress
             if (!(PINA & (1<<TESTPIN)) )         // if Testpin is low: signalling TESTMODE
@@ -383,7 +425,7 @@ int main( void )
             else
                 state=state2;                       // next state is state 2
             }                                   // leaving standby
-        break;
+    break;
 
 /*------------------------------------------------------------------*/
 /*  state 2  Tentative Power on, waiting for Pi to come up          */
@@ -393,15 +435,20 @@ int main( void )
 /*------------------------------------------------------------------*/
     case state2:
 
-        if (first_time & (1<<1))   {            // first_time time throu ?
+        if (first_time & (1<<STAT2_FIRST)) {     // first_time time throu ?
             PORTA |= (1<<VPOWER);               //switch 5 volt power on
+            poweron_delay=POWERON_Delay_long;
+            if ( !(PINA & (1<<DELAYTIME)) ) {
+              poweron_delay=POWERON_Delay_short;            // check pin PA6 for delay times (Dip-switch 4 Pos 2 ON)
+            }
+
             blinkwhat=REGULAR_Blink;
             blinkint=POWERON_Blink_int;
             tick2=0;                            //start timer
             sekunde=0;
             pwm_start();						            // start pulse generation output on PA5
             first_time =0xff;                   // set first_time all other states
-            first_time &= ~( 1<<1)  ;           // clear first_time this state
+            first_time &= ~( 1<<STAT2_FIRST);    // clear first_time this state
             }
 
         pwm_check();
@@ -417,7 +464,7 @@ int main( void )
            }
                     // how many pi pulses have we received ? if we have Pi is alive
                     // so we go to state 3 (normal operation state)
-            if (pastpulses > 3) {state=state3;}
+        if (pastpulses > 3) {state=state3;}
 
     break;
 
@@ -429,14 +476,14 @@ int main( void )
 /*  Long Keypress signals Pi to reboot, stays in state 3            */
 /*------------------------------------------------------------------*/
     case state3:
-        if (first_time & (1<<3))  {                   // first_time time throu ?
+        if (first_time & (1<<STAT3_FIRST))  {   // first_time time throu ?
             PORTA |= (1<<LED1);                // led full on
             blinkwhat=0;
             key_clear( 1<<KEY0 );
             first_time =0xff;                        // set first_time all other states
-            first_time &= ~( 1<<3)  ;                // clear first_time this state
+            first_time &= ~( 1<<STAT3_FIRST);        // clear first_time this state
             }
-            pwm_check();						// check various inputs for frequency of pulse on PA5
+        pwm_check();						// check various inputs for frequency of pulse on PA5
 
         if  (get_key_short( 1<<KEY0 )) {         // get debounced keypress short
             cli();
@@ -461,13 +508,13 @@ int main( void )
               poweroff_delay=POWEROFF_Delay_REBOOT_short;   // check pin PA6 for delay times (Dip-switch 4 Pos 2 ON)
               }
 
-            }
+        }
 
             // check numer of pulses from Pi, zero means: Pi is not alive
-             if (pastpulses < 2 )  {
-                state=state5;                           // ok, start power off sequence
-                poweroff_delay=POWEROFF_Delay_HALT_long;   // Poweroff delay for halt
-                }
+        if (pastpulses < 2 )  {
+            state=state5;                           // ok, start power off sequence
+            poweroff_delay=POWEROFF_Delay_HALT_long;   // Poweroff delay for halt
+        }
         break;
 
 /*------------------------------------------------------------------*/
@@ -477,15 +524,15 @@ int main( void )
 /*  Short keypress  signals Pi to shut down, changes state to 5     */
 /*------------------------------------------------------------------*/
     case state4:
-        if (first_time & (1<<4))   {                  // first_time time throu ?
+        if (first_time & (1<<STAT4_FIRST)) {   // first_time time throu ?
             PORTA |= (1<<LED1);                // led full on
             blinkwhat=0;
             key_clear( 1<<KEY0 );               // ignore keypresses that might have come
 
             first_time =0xff;                        // set first_time all other states
-            first_time &= ~( 1<<4)  ;                // clear first_time this state
+            first_time &= ~( 1<<STAT4_FIRST)  ;      // clear first_time this state
             }
-            pwm_check();                        //  Pulse generation
+        pwm_check();                        //  Pulse generation
                                                 //  Check DIP-Switch (PINB0 to PINB2)
 
         if  (get_key_short( 1<<KEY0 ))  {        // get debounced keypress short
@@ -509,7 +556,7 @@ int main( void )
 /*  goto stand by state if timer runs out                           */
 /*------------------------------------------------------------------*/
     case state5:
-        if (first_time & (1<<5))   {                  // first_time time throu ?
+        if (first_time & (1<<STAT5_FIRST))   {   // first_time time throu ?
             blinkwhat=REGULAR_Blink;            // set led to blink
             blinkint=POWEROFF_Blink_int;
             key_clear( 1<<KEY0 );               // ignore keypresses that might have come
@@ -517,7 +564,7 @@ int main( void )
             tick2=0;                            //start timer
             sekunde=0;
             first_time =0xff;                        // set first_time all other states
-            first_time &= ~( 1<<5)  ;                // clear first_time this state
+            first_time &= ~( 1<<STAT5_FIRST)  ;      // clear first_time this state
             }
   //          pwm_check();                        //  Pulse generation
                                                 //  Check DIP-Switch (PINB0 to PINB2)
@@ -570,7 +617,7 @@ int main( void )
 /*  Short keypress: next state is state1 (off)                      */
 /*------------------------------------------------------------------*/
     case state7:
-        if (first_time & (1<<7))   {            // first_time time throu ?
+        if (first_time & (1<<STAT7_FIRST))   {  // first_time time throu ?
             PORTA |= (1<<VPOWER);               //switch 5 volt power on
             PORTA |= (1<<LED1);                // led full on
             blinkwhat=0;
@@ -579,7 +626,7 @@ int main( void )
             sekunde=0;
             blink_led();
             first_time =0xff;                        // set first_time all other states
-            first_time &= ~( 1<<7)  ;                // clear first_time this state
+            first_time &= ~( 1<<STAT7_FIRST)  ;                // clear first_time this state
             }
        if  (get_key_short( 1<<KEY0 )) {         // get debounced keypress short
             state=state1;
