@@ -21,6 +21,7 @@
 #
 # Modifications:
 # Dec. 2016 optparse replaced by argparse
+# August 2021  print mit () versehen....
 
 # ------------------------------------------------------------------------
 #
@@ -75,20 +76,21 @@ class GracefulKiller:
     signal.signal(signal.SIGTERM, self.exit_gracefully)
 
   def exit_gracefully(self,signum, frame):
-      if debug==2: print "iSwitchPi: Signal received " , signum 
-      tmp=killfile + "-" + '{:2d}'.format(signum) + ".txt"
+      if debug==2: print ("iSwitchPi: Signal received:{} ".format( signum)) 
+      tmp = killfile + "-" + '{:2d}'.format(signum) + ".txt"
       killit=open(tmp,"w")  # write killfile, so we know this was done
       killit.close()
-      if debug==2: print "iSwitchPi: Return in Signalhandler.. " , signum
+      if debug==2: print ("iSwitchPi: Return in Signalhandler.. ")
       self.kill_now = True
       
 #------------------------------------------------
 # delete ev. vorhandene killfiles
 def purgekf(dir, pattern):
     for f in os.listdir(dir):
-    	if re.search(pattern, f):
-    	    if debug==2: print "iSwitchPi: killfile %s removed" % f
-            os.remove(os.path.join(dir, f))
+        if re.search(pattern, f):
+    	 #   if debug == 2: 
+         #       print ("iSwitchPi: killfile {} removed".format(f) )
+            os.remove (os.path.join(dir,f))
 
 
 # -----------------------------------------------------------------
@@ -96,10 +98,10 @@ def purgekf(dir, pattern):
 def gpio_pincheck(pin):
     
     if ((pin == 13) or (pin == 19) or (pin==20) or (pin==26)) :
-      if debug==1:   print "iSwitchPi: Selected ComPin: %d\n" % pin
+      if debug==1:   print ("iSwitchPi: Selected ComPin: %d\n" % pin)
       return();
-    print "iSwitchPi: Selected GPIO %d not valid (use 13,19,20 or 26)" % pin
-    print "iSwitchPi: Terminating"
+    print ("iSwitchPi: Selected GPIO %d not valid (use 13,19,20 or 26)" % pin)
+    print ("iSwitchPi: Terminating")
 
     return(99);   
 
@@ -109,7 +111,7 @@ def my_callback(channel):
     global state,sleeptime,anzir;
     
 #    sleeptime=0         # starting now we do not sleep in main loop
-    if debug==2:   print "iSwitchPi: Shutdown GPIO-Pin Rising: %d" % channel
+    if debug==2:   print ("iSwitchPi: Shutdown GPIO-Pin Rising: %d" % channel)
     anzir=anzir+1
 #    GPIO.remove_event_detect(channel);
 #    state=2;
@@ -124,9 +126,9 @@ def shutdown(what):
 
     if (what==1):                # high means halt, low means reboot
     
-        if debug==1: print "\niSwitchPi: detected HALT"
+        if debug==1: print ("\niSwitchPi: detected HALT")
         if debug==2:           # debug mode do nothing exept print
-            print "iSwitchPi: Shutdown reached... Halting"
+            print ("iSwitchPi: Shutdown reached... Halting")
             GPIO.output(com_gpio_pin,False)
             GPIO.cleanup(com_gpio_pin)
             sys.exit(0)
@@ -142,10 +144,10 @@ def shutdown(what):
             call('halt', shell=False)   # halt the Linux System
             return(0)
     else:
-        if debug==1: print "\niSwitchPi: detected REBOOT"
+        if debug==1: print ("\niSwitchPi: detected REBOOT")
 
         if debug==2:           # debug mode do nothing exept print
-            print "iSwitchPi: Shutdown reached... Rebooting"
+            print ("iSwitchPi: Shutdown reached... Rebooting")
             GPIO.output(com_gpio_pin,False)
             GPIO.cleanup(com_gpio_pin)
             sys.exit(0)
@@ -212,11 +214,11 @@ if __name__ == '__main__':
     while True:    
         sleep(sleeptime)                # normal delay in loop
         if killer.kill_now:
-            if debug==2: print "iSwitchPi: OK, Kill myself" 
+            if debug==2: print ("iSwitchPi: OK, Kill myself") 
             break;
         if (intervall > INTERVALLMAX):      # intervall to send pulses
             if (anzir>0):                   # did we have Ir's in the past intervall ?
-                if debug==2: print "iSwitchPi: Number of IR: ", anzir      # yes we did, so shutdown or reboot
+                if debug==2: print ("iSwitchPi: Number of IR:{} ".format( anzir))      # yes we did, so shutdown or reboot
                 shutdown(anzir)             # pass number of IR on to shutdown function
                 break;                      # terminate script, OS will do the rest   
             anzir=0                         # clear old IR's 
@@ -237,7 +239,7 @@ if __name__ == '__main__':
     GPIO.output(com_gpio_pin,False)               # set GPIO low 
                                             # we reach this if Pi is halted/rebooted
                                             # from commandline or else
-    if debug==2: print "iSwitchPi: End reached"
+    if debug==2: print ("iSwitchPi: End reached")
 #-------------------------------------------------------------
 #   end of program       
 #-------------------------------------------------------------
